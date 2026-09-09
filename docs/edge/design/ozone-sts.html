@@ -639,8 +639,9 @@ provides the ability to generate short-lived access to resources.</p>
 <p>Providing short-lived access to various resources in Ozone is useful in scenarios such as Data Lake
 solutions that want to aggregate data across multiple cloud providers.</p>
 <h1 id="3-how-ozone-sts-works">3. How Ozone STS Works</h1>
-<p>The initial implementation of Ozone STS supports only the <a href="https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html">AssumeRole</a>
-API from the AWS specification.  A new STS endpoint <code>/sts</code> on port <code>9880</code> (port <code>9881</code> for https) will be created to service STS requests in the S3 Gateway.
+<p>The initial implementation of Ozone STS supports the <a href="https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html">AssumeRole</a>
+and <a href="https://docs.aws.amazon.com/STS/latest/APIReference/API_GetCallerIdentity.html">GetCallerIdentity</a>
+APIs from the AWS specification.  A new STS endpoint on port <code>9880</code> (port <code>9881</code> for https) will be created to service STS requests in the S3 Gateway at the root path (<code>/</code>).
 We use a separate port for STS to align with AWS so we don&rsquo;t have conflicts at a later time.  This means we have:</p>
 <ul>
 <li>Admin port for Ozone specific S3 admin operations</li>
@@ -666,6 +667,11 @@ return value of the AssumeRole call will be temporary credentials consisting of 
 an IAM policy is specified, the temporary credential will have the permissions comprising the intersection of the role permissions
 and the IAM policy permissions. <strong>Note:</strong> If the IAM policy is specified and does not grant any permissions, then
 the generated temporary credentials won&rsquo;t have any permissions and will essentially be useless.</li>
+<li><a href="https://docs.aws.amazon.com/STS/latest/APIReference/API_GetCallerIdentity.html">GetCallerIdentity</a> returns the account,
+ARN, and user ID for the caller credentials used to sign the request. Ozone uses a static account ID of <code>123456789012</code>.
+For permanent S3 credentials, <code>UserId</code> is the resolved Kerberos principal and <code>Arn</code> is <code>arn:aws:iam::123456789012:user/&lt;kerberosShortName&gt;</code>
+where <code>&lt;kerberosShortName&gt;</code> is the short username of the Kerberos principal. For STS temporary credentials, <code>UserId</code> is
+the <code>AssumedRoleId</code> and <code>Arn</code> is the assumed-role user ARN from the session token.</li>
 </ul>
 <h2 id="32-limitations-in-assumerole-api-support">3.2 Limitations in AssumeRole API Support</h2>
 <p>The AWS AssumeRole API has various required and optional fields.  We will support the two required fields, i.e. <code>RoleArn</code>
@@ -710,6 +716,13 @@ it will fail when the temporary credentials are used, so this design is accordan
 team agreed that behavior is fine for actions, but does not work for Conditions, because one can have a Condition to
 restrict calls by sourceIp, and if we silently ignore this, the client may incorrectly think the temporary credentials
 are restricted for use by that IP address, so the consensus was to reject the request for that scenario.</p>
+<h3 id="332-additional-context-on-linked-buckets">3.3.2 Additional Context on Linked Buckets</h3>
+<p>In Ozone, one may configure a chain of bucket links.  In the scenario where one desires to call the AssumeRole API where the resource
+is a linked bucket, ensure the Ranger policies for the role have the proper permissions for each link in the chain as well
+as the source bucket.  For example, if there is a source bucket S, that is linked to bucket A, which is linked to bucket B,
+and you want the token to be able to issue operations against linked bucket B, ensure that the role has read access to bucket B,
+read access to bucket A, and the requisite access for bucket S (such as read on keys for GetObject, create/write on keys for PutObject, etc.).
+The role must have at least read access to the volume(s) where these buckets live as well.</p>
 <h2 id="34-sessiontoken-format">3.4 SessionToken Format</h2>
 <p>As mentioned above, one of the return values from the AssumeRole call will be the sessionToken. To support not
 storing temporary credentials server-side in Ozone, the sessionToken will comprise various components needed to validate
@@ -731,16 +744,23 @@ was included with the AssumeRole request, the String return value will also incl
 would further limit the scope of the permissions, resources and actions granted by the role in Ranger, such that the temporary
 credential will have the permissions and actions comprising the intersection of the role permissions and actions and the sessionPolicy permissions and actions.</li>
 <li>HMAC-SHA256 signature - used to ensure the sessionToken was created by Ozone and was not altered since it was created.</li>
+<li>creation time of the token (via <code>OMTokenProto#issueDate</code>, exposed as <code>STSTokenIdentifier#getCreationTime()</code>)</li>
 <li>expiration time of the token (via <code>ShortLivedTokenIdentifier#getExpiry()</code>)</li>
 <li>UUID of the OzoneManager secret key used to sign the sessionToken and encrypt the secretAccessKey (via <code>ShortLivedTokenIdentifier#getSecretKeyId()</code>)</li>
+<li>assumedRoleId - the generated identifier of the role from the AssumeRole call response (this is used for GetCallerIdentity api)</li>
+<li>assumedRoleUserArn - the arn from the AssumeRole call response (this is used for GetCallerIdentity api)</li>
 </ul>
 <h2 id="35-sts-token-revocation">3.5 STS Token Revocation</h2>
 <p>In the rare event temporary credentials need to be revoked (ex. for security reasons), a table in the OzoneManager RocksDB will be created
-to store revoked tokens, and a command-line utility will be created to add tokens to the table.  A background cleaner service
-will be created to run every 3 hours to delete revoked tokens that have been in the table for more than 12 hours.  The
-input parameter for the command-line utility will be the sessionToken - this value is returned in plain text as a result
-of the AssumeRole call (mentioned above).  In this way, specific STS tokens can be revoked as opposed to all tokens.  Furthermore,
-AWS doesn&rsquo;t have a standard API to revoke tokens therefore we are creating our own system.</p>
+to store revocation cutoffs per originalAccessKeyId, and a command-line utility will be created to add entries to the table.
+A background cleaner service will be created to run every 3 hours to delete revocation entries whose cutoff is more than 12 hours old.</p>
+<p>The command-line utility accepts only <code>originalAccessKeyId</code>. The OM stores revocations by keying the table on
+<code>originalAccessKeyId</code> and storing the revocation cutoff time in milliseconds as the value. When the command is issued,
+all STS tokens created by that <code>originalAccessKeyId</code> whose signed <code>creationTime</code> is strictly before the cutoff are
+revoked. Tokens created at or after the cutoff remain valid.</p>
+<p>Before writing a revocation entry, the OM verifies that <code>originalAccessKeyId</code> corresponds to a real Kerberos identity by
+checking that an S3 secret exists for it. This prevents bogus entries from filling the table. Non-admins may only
+revoke their own <code>originalAccessKeyId</code>; S3 and tenant admins may revoke other principals.</p>
 <p>Additionally, if the Kerberos identity of the user that created the STS token is revoked via the <code>ozone s3 revokesecret</code>
 command, then all the existing and unexpired STS tokens that user created will be revoked.</p>
 <p>Note: STS token revocation checks are strictly enforced and will fail-closed if there are internal errors such as not
@@ -777,12 +797,12 @@ successfully authorized, and if so, it will return a String representation of th
 subsequent S3 API calls are made that use STS tokens.  In order to achieve this, the sessionPolicy String from Ranger will
 be included in the sessionToken response to the AssumeRole API call (as mentioned above), and Ozone will supply this String
 to Ranger whenever STS tokens are used on S3 API calls via a new <code>RequestContext.sessionPolicy</code> field in the
-<code>IAccessAuthorizer#checkAccess(IOzoneObj, RequestContext)</code> call.  Another requirement from the Ozone side is to pass the action (without the s3: prefix) corresponding to the S3 api call into the <code>RequestContext.s3Action</code> field.</p>
+<code>IAccessAuthorizer#checkAccess(IOzoneObj, RequestContext)</code> call.  Another requirement from the Ozone side is to pass the action (without the s3: prefix) corresponding to the S3 API call into the <code>RequestContext.s3Action</code> field.</p>
 <h3 id="362-additional-context-on-permissions-and-actions">3.6.2 Additional Context on Permissions and Actions</h3>
 <p>In a prior iteration of this design, only permissions corresponding to Ozone <code>ACLType</code> (i.e. read, write, create, read_acl, etc.) were included in Ranger roles and session policies.
-However, after testing against AWS, it was found that ACLs used by Ozone and Ranger are not granular enough. For example, read on volume, read on bucket, and write on key can be used by either the S3 PutObjectTagging api (requiring <code>s3:PutObjectTagging</code> action) or the S3 DeleteObjectTagging api (requiring <code>s3:DeleteObjectTagging</code> action).
-Similarly, because the S3 PutObject api (<code>s3:PutObject</code> action) requires read on volume, read on bucket, and create and write on key, someone with <code>s3:PutObject</code> access could previously also call the S3 PutObjectTagging api, even though they did not have access to the <code>s3:PutObjectTagging</code> action (as an example).
-AWS does not allow an STS token that is restricted for one action to issue calls to an api that is associated with a different action.  To prevent having more access than requested (or different access than requested), ACL permissions can be constrained further by S3 actions.</p>
+However, after testing against AWS, it was found that ACLs used by Ozone and Ranger are not granular enough. For example, read on volume, read on bucket, and write on key can be used by either the S3 PutObjectTagging API (requiring <code>s3:PutObjectTagging</code> action) or the S3 DeleteObjectTagging API (requiring <code>s3:DeleteObjectTagging</code> action).
+Similarly, because the S3 PutObject API (<code>s3:PutObject</code> action) requires read on volume, read on bucket, and create and write on key, someone with <code>s3:PutObject</code> access could previously also call the S3 PutObjectTagging API, even though they did not have access to the <code>s3:PutObjectTagging</code> action (as an example).
+AWS does not allow an STS token that is restricted for one action to issue calls to an API that is associated with a different action.  To prevent having more access than requested (or different access than requested), ACL permissions can be constrained further by S3 actions.</p>
 <p>To do this constraining, the <code>RequestContext.s3Action</code> field is introduced so that if populated, the RangerOzoneAuthorizer would further restrict the permissions according to the action.
 Additionally, the OzoneGrant would contain a Set<String> representing the S3 actions that are allowed for an inline policy. If all actions are allowed, then the Set<String> would be empty or null.</p>
 <h2 id="37-overall-flow">3.7 Overall Flow</h2>
@@ -793,12 +813,13 @@ created in Ranger as per the Prerequisites above.</li>
 <li>This authorized user (having permanent S3 credentials) makes the AssumeRole STS call to Ozone.</li>
 <li>If successful, Ozone responds with the temporary credentials.</li>
 <li>A client makes S3 API calls with the temporary credentials for up to as long as the credentials last.</li>
-<li>When Ozone receives an S3 api call using temporary credentials, it will use the Kerberos identity associated with the
+<li>When Ozone receives an S3 API call using temporary credentials, it will use the Kerberos identity associated with the
 originalAccessKeyId in the session token and perform the following checks:
 <ul>
 <li>Ensure that if the accessKeyId starts with &ldquo;ASIA&rdquo;, that a sessionToken was included in the <code>x-amz-security-token</code> header</li>
 <li>Ensure the sessionToken is not expired</li>
-<li>Ensure the sessionToken is not revoked via a <code>keyMayExist</code> check in OzoneManager RocksDB</li>
+<li>Ensure the STS credentials are not revoked by looking up the revocation cutoff for the token&rsquo;s originalAccessKeyId
+and comparing it against the token&rsquo;s signed creationTime</li>
 <li>Validate the HMAC-SHA256 signature in the sessionToken</li>
 <li>Decrypt the secretAccessKey from the sessionToken and validate the AWS signature</li>
 <li>Authorize the call with either RangerOzoneAuthorizer or OzoneNativeAuthorizer</li>
@@ -818,7 +839,7 @@ originalAccessKeyId in the session token and perform the following checks:
 <footer class="footer">
   <div class="container">
     <span class="small text-muted">
-      Version: 2.3.0-SNAPSHOT, Last Modified: June 14, 2026 <a class="hide-child link primary-color" href="https://github.com/apache/ozone/commit/e7c5a70723cbad0e3a37a4c0a96ec89703649eba">e7c5a70723</a>
+      Version: 2.3.0-SNAPSHOT, Last Modified: September 3, 2026 <a class="hide-child link primary-color" href="https://github.com/apache/ozone/commit/5bc5a1e362f5143198683b511a32984f6319a8fb">5bc5a1e362</a>
     </span>
   </div>
 </footer>
