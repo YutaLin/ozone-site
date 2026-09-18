@@ -873,7 +873,18 @@ s=d.getElementsByTagName('script')[0];
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span>ozone s3 revokesecret -u om/om@EXAMPLE.COM -y
 </span></span><span style="display:flex;"><span>S3 secret revoked.
-</span></span></code></pre></div><h2 id="expose-any-volume">Expose any volume</h2>
+</span></span></code></pre></div><h2 id="health-check">Health check</h2>
+<p>The S3 Gateway serves two unauthenticated health endpoints on its web admin server (default port <code>19878</code>), separate from the S3 listener (<code>9878</code>). Because they are served on the admin port, they do not collide with S3 bucket names and do not require AWS SigV4 signing, so a load balancer can poll them directly.</p>
+<h3 id="liveness">Liveness</h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>curl http://localhost:19878/health/live
+</span></span><span style="display:flex;"><span>OK
+</span></span></code></pre></div><p>Returns <code>200 OK</code> while the gateway process is up and its web admin server can serve requests. It does not check OM reachability.</p>
+<h3 id="readiness">Readiness</h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>curl http://localhost:19878/health/ready
+</span></span><span style="display:flex;"><span>READY
+</span></span></code></pre></div><p>Returns <code>200 READY</code> only when the gateway can reach OM, and <code>503 NOT READY</code> during startup or while OM is unreachable. A background probe refreshes OM reachability off the request path, so the endpoint always responds immediately and cannot be blocked by a slow OM. The probe cadence and its timeout are tunable with <code>ozone.s3g.health-check.probe.interval</code> and <code>ozone.s3g.health-check.probe.timeout</code>.</p>
+<p>When S3 Gateway is horizontally scaled, point the load balancer&rsquo;s HTTP health check at the readiness endpoint so it only routes S3 traffic to gateways that can serve it; see the bundled <code>compose/common/s3-haproxy.cfg</code> for a worked HAProxy example. Both endpoints can be turned off with <code>ozone.s3g.health-check.enabled=false</code>, which removes them entirely. Note that the bundled Kubernetes manifests and HAProxy configs probe <code>/health/live</code> and <code>/health/ready</code> unconditionally, so if you disable the endpoints you must also remove those probes from your deployment; otherwise Kubernetes restarts the pods on failed liveness checks and HAProxy marks every backend down.</p>
+<h2 id="expose-any-volume">Expose any volume</h2>
 <p>Ozone has one more element in the name-space hierarchy compared to S3: the volumes. By default, all the buckets of the <code>/s3v</code> volume can be accessed with S3 interface but only the (Ozone) buckets of the <code>/s3v</code> volumes are exposed.</p>
 <p>To make any other buckets available with the S3 interface a &ldquo;symbolic linked&rdquo; bucket can be created:</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>ozone sh volume create /s3v
@@ -919,7 +930,7 @@ s=d.getElementsByTagName('script')[0];
 <footer class="footer">
   <div class="container">
     <span class="small text-muted">
-      Version: 2.3.0-SNAPSHOT, Last Modified: May 24, 2026 <a class="hide-child link primary-color" href="https://github.com/apache/ozone/commit/e4db8a6c7f210fd8853aac38ba9f3ddf2453a214">e4db8a6c7f</a>
+      Version: 2.3.0-SNAPSHOT, Last Modified: September 17, 2026 <a class="hide-child link primary-color" href="https://github.com/apache/ozone/commit/11ba2a1f13c8d4fd9fb1f030f1fd7bad425fcfb3">11ba2a1f13</a>
     </span>
   </div>
 </footer>
