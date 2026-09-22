@@ -603,7 +603,7 @@ s=d.getElementsByTagName('script')[0];
 
         <div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main-content">
             <div class="col-md-9">
-                <h1><a href="https://issues.apache.org/jira/browse/HDDS-13323">[HDDS-13323]</a> AWS STS Design for Ozone S3 (implementing) </h1>
+                <h1><a href="https://issues.apache.org/jira/browse/HDDS-13323">[HDDS-13323]</a> AWS STS Design for Ozone S3 (implemented) </h1>
                 <div><i>Authors: Madhan Neethiraj, Ren Koike, Fabian Morgan, Stephen O&#39;Donnell, Istvan Fajth, Uma Maheswara Rao Gangumalla</i><div class="pull-right">2025-10-30</div></div>
                 <p>&nbsp</p>
 
@@ -820,9 +820,10 @@ originalAccessKeyId in the session token and perform the following checks:
 <li>Ensure the sessionToken is not expired</li>
 <li>Ensure the STS credentials are not revoked by looking up the revocation cutoff for the token&rsquo;s originalAccessKeyId
 and comparing it against the token&rsquo;s signed creationTime</li>
+<li>Ensure that the Kerberos identity associated with the originalAccessKeyId is not revoked</li>
 <li>Validate the HMAC-SHA256 signature in the sessionToken</li>
 <li>Decrypt the secretAccessKey from the sessionToken and validate the AWS signature</li>
-<li>Authorize the call with either RangerOzoneAuthorizer or OzoneNativeAuthorizer</li>
+<li>Authorize the call with RangerOzoneAuthorizer</li>
 </ul>
 </li>
 </ul>
@@ -839,7 +840,7 @@ and comparing it against the token&rsquo;s signed creationTime</li>
 <footer class="footer">
   <div class="container">
     <span class="small text-muted">
-      Version: 2.3.0-SNAPSHOT, Last Modified: September 3, 2026 <a class="hide-child link primary-color" href="https://github.com/apache/ozone/commit/5bc5a1e362f5143198683b511a32984f6319a8fb">5bc5a1e362</a>
+      Version: 2.3.0-SNAPSHOT, Last Modified: September 22, 2026 <a class="hide-child link primary-color" href="https://github.com/apache/ozone/commit/6ae92dab30d559f3a3522a5d55a70f5bba796309">6ae92dab30</a>
     </span>
   </div>
 </footer>
