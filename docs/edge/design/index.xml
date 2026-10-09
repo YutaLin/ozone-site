@@ -6,7 +6,7 @@
     <description>Recent content in Designs on Ozone</description>
     <generator>Hugo</generator>
     <language>en</language>
-    <lastBuildDate>Tue, 22 Sep 2026 06:23:10 -0700</lastBuildDate>
+    <lastBuildDate>Fri, 09 Oct 2026 00:33:00 +0100</lastBuildDate>
     <atom:link href="/design/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>Resumable Lifecycle Scans</title>
@@ -343,6 +343,13 @@
       <pubDate>Tue, 18 Sep 2018 00:00:00 +0000</pubDate>
       <guid>/design/omha.html</guid>
       <description>Support HA for Ozone Manager with the help of RATIS</description>
+    </item>
+    <item>
+      <title></title>
+      <link>/design/zdu-design.html</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      <guid>/design/zdu-design.html</guid>
+      <description>&lt;!--&#xA;  Licensed under the Apache License, Version 2.0 (the &#34;License&#34;);&#xA;  you may not use this file except in compliance with the License.&#xA;  You may obtain a copy of the License at&#xA;&#xA;   http://www.apache.org/licenses/LICENSE-2.0&#xA;&#xA;  Unless required by applicable law or agreed to in writing, software&#xA;  distributed under the License is distributed on an &#34;AS IS&#34; BASIS,&#xA;  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.&#xA;  See the License for the specific language governing permissions and&#xA;  limitations under the License. See accompanying LICENSE file.&#xA;--&gt;&#xA;&lt;h1 id=&#34;zero-downtime-upgrade-zdu&#34;&gt;Zero Downtime Upgrade (ZDU)&lt;/h1&gt;&#xA;&lt;h2 id=&#34;the-goal&#34;&gt;The Goal&lt;/h2&gt;&#xA;&lt;p&gt;The goal of Zero Downtime Upgrade (ZDU) is to allow the software running an existing Ozone cluster to be upgraded while the cluster remains operational. There should be no gaps in service and the upgrade should be transparent to applications using the cluster.&lt;/p&gt;</description>
     </item>
   </channel>
 </rss>
