@@ -1803,12 +1803,17 @@ are passed, <code>uuid</code> wins. Omitting both returns an error.</p>
 </li>
 <li>
 <p>fileSize (optional)</p>
-<p>Filters the results based on the given fileSize.</p>
+<p>Filters the results by the exact upper bound of a file-size histogram bin, in bytes. It is not an arbitrary file
+size or a cumulative less-than-or-equal threshold. A positive value that is not a bin upper bound returns an empty
+result. The first bin has an upper bound of 1024 bytes; for example, the bin with upper bound 2048 contains files
+larger than 1024 bytes and up to 2048 bytes. This filter can be used independently or together with volume and/or
+bucket.</p>
 </li>
 </ul>
 <p><strong>Returns</strong></p>
-<p>Returns the file counts within different file ranges with <code>fileSize</code> in the
-response object being the upper cap for file size range.</p>
+<p>Returns the file counts within different file ranges with <code>fileSize</code> in the response object being the upper bound of
+the corresponding histogram bin. Each count is for that bin only, not the cumulative count of files whose size is less
+than or equal to <code>fileSize</code>.</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>     [{
 </span></span><span style="display:flex;"><span>     	<span style="color:#f92672">&#34;volume&#34;</span>: <span style="color:#e6db74">&#34;vol-2-04168&#34;</span>,
 </span></span><span style="display:flex;"><span>     	<span style="color:#f92672">&#34;bucket&#34;</span>: <span style="color:#e6db74">&#34;bucket-0-11685&#34;</span>,
@@ -2114,7 +2119,7 @@ ever run (status will be <code>IDLE</code>, phase <code>NONE</code>, <code>start
 <footer class="footer">
   <div class="container">
     <span class="small text-muted">
-      Version: 2.3.0-SNAPSHOT, Last Modified: June 5, 2026 <a class="hide-child link primary-color" href="https://github.com/apache/ozone/commit/fffb963577311fab8ec95c33dc6e5fe8adb1ca78">fffb963577</a>
+      Version: 2.3.0-SNAPSHOT, Last Modified: October 13, 2026 <a class="hide-child link primary-color" href="https://github.com/apache/ozone/commit/c5d4f28266dc7b2feb1954c235553afa88f91b5b">c5d4f28266</a>
     </span>
   </div>
 </footer>
