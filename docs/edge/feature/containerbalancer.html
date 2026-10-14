@@ -783,8 +783,8 @@ with the total count and a per-datanode breakdown of which source and target nod
       </tr>
       <tr>
           <td><code>hdds.container.balancer.balancing.iteration.interval</code></td>
-          <td>The interval period between each iteration of Container Balancer.</td>
-          <td>70m</td>
+          <td>The interval to wait between iterations. The balancer runs continuously, this wait lets SCM receive refreshed Datanode usage information before the next iteration starts.</td>
+          <td>3m</td>
       </tr>
       <tr>
           <td><code>hdds.container.balancer.include.datanodes</code></td>
@@ -827,7 +827,7 @@ with the total count and a per-datanode breakdown of which source and target nod
 <footer class="footer">
   <div class="container">
     <span class="small text-muted">
-      Version: 2.3.0-SNAPSHOT, Last Modified: August 25, 2026 <a class="hide-child link primary-color" href="https://github.com/apache/ozone/commit/e6dfa38dbdf0657a6a0d1ef701fa53c366275dce">e6dfa38dbd</a>
+      Version: 2.3.0-SNAPSHOT, Last Modified: October 14, 2026 <a class="hide-child link primary-color" href="https://github.com/apache/ozone/commit/cce1ca28944886218132f01c0e271c1fd0700078">cce1ca2894</a>
     </span>
   </div>
 </footer>
